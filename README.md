@@ -25,6 +25,13 @@ cd ..
 cp .env.example backend/.env
 ```
 
+> **Heads up — the SDK is not pre-committed.** `frontend/src/client/` ships
+> empty (just a `.gitkeep`), so a fresh clone will not build or run until you
+> generate it once. After the steps above, run the backend with `DEBUG=true`
+> and then `pnpm regen` from `frontend/` — see [Regenerate the SDK](#regenerate-the-sdk-when-backend-routes-or-schemas-change)
+> below. The generated files are committed from then on; subsequent clones of
+> *your* POC repo build without regenerating.
+
 ## Run locally
 
 Two terminals.
@@ -58,8 +65,10 @@ The frontend never hand-writes API calls. It talks to the backend through a
 TypeScript SDK generated from the backend's OpenAPI schema
 (`@hey-api/openapi-ts`).
 
-- Generated SDK lives in `frontend/src/client/` — **committed to the repo** so
-  a fresh clone builds without regenerating.
+- Generated SDK lives in `frontend/src/client/`. In this template the
+  directory is empty (`.gitkeep` only) — you must run `pnpm regen` once after
+  cloning. Once generated, commit the `*.gen.ts` files so future clones of
+  your POC build without regenerating.
 - Hand-written hooks in `frontend/src/api/` wrap the generated SDK for
   TanStack Query (`useHealth` in `src/api/health.ts` is the reference).
 - Components consume those hooks via `useQuery` / `useMutation` — they never
