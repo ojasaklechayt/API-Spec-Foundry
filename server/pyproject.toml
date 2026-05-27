@@ -18,7 +18,7 @@ dev = [
 
 [tool.pytest.ini_options]
 pythonpath = [".."]
-testpaths = ["../tests/server"]
+testpaths = ["../tests/server", "../tests/e2e"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["."]

@@ -1,140 +1,79 @@
-# poc-boilerplate
+# API Spec Foundry
 
-Starter for MindLap POCs. FastAPI + SQLite backend, React + Vite frontend,
-typed SDK auto-generated from the backend's OpenAPI schema.
+Foundry is a Claude Code plugin plus local MCP server for deterministic API
+spec drafting, validation, and project generation. The tested happy path for
+this repo is:
 
+```text
+draft_spec -> validate_spec -> generate_all -> generated pytest
 ```
-backend/   FastAPI app, SQLite (async SQLAlchemy), /healthz
-frontend/  React + Vite + Tailwind, TanStack Query, generated SDK in src/client/
-```
 
-## First-time setup
+Generated output is expected under `<output_dir>/<project_slug>/`.
+
+## Install
+
+Prerequisites:
+
+- `uv`
+- Claude Code with plugin support enabled
+
+Install the plugin from this repo:
 
 ```bash
-# Backend
-cd backend
-uv venv
-uv pip install -e ".[dev]"
-
-# Frontend
-cd ../frontend
-pnpm install
-
-# Env
-cd ..
-cp .env.example backend/.env
+/plugin install /app
+/plugin list
 ```
 
-> **Heads up — the SDK is not pre-committed.** `frontend/src/client/` ships
-> empty (just a `.gitkeep`), so a fresh clone will not build or run until you
-> generate it once. After the steps above, run the backend with `DEBUG=true`
-> and then `pnpm regen` from `frontend/` — see [Regenerate the SDK](#regenerate-the-sdk-when-backend-routes-or-schemas-change)
-> below. The generated files are committed from then on; subsequent clones of
-> *your* POC repo build without regenerating.
+The plugin activates the `foundry` agent and wires the local MCP server from
+`.mcp.json`. The runtime entrypoint is `uv run --project server python -m server.main`.
 
-## Run locally
+## Generate The Task Manager Demo
 
-Two terminals.
+Use the `foundry` agent and provide a Task Manager prompt that includes:
 
-```bash
-# Terminal 1 — backend on :8000
-cd backend
-source .venv/bin/activate.fish   # or .venv/bin/activate for bash/zsh
-uvicorn app.main:app --reload --port 8000
+- `User` with `email`, `name`, `is_active`
+- `Task` with `title`, `status`, `due_date`, `user_id`
+- auth `none`
+- database `sqlite`
+
+Expected agent flow:
+
+1. `draft_spec`
+2. user confirmation
+3. `validate_spec`
+4. `generate_all`
+
+The generated project target should be:
+
+```text
+<output_dir>/task-manager/
 ```
-
-```bash
-# Terminal 2 — frontend on :5173
-cd frontend
-pnpm dev
-```
-
-Verify:
-
-```bash
-curl http://localhost:8000/healthz
-# {"status":"ok"}
-```
-
-Open http://localhost:5173 — the home page calls `useHealth()`, which goes
-through the generated SDK, and renders `ok`.
-
-## How the SDK works
-
-The frontend never hand-writes API calls. It talks to the backend through a
-TypeScript SDK generated from the backend's OpenAPI schema
-(`@hey-api/openapi-ts`).
-
-- Generated SDK lives in `frontend/src/client/`. In this template the
-  directory is empty (`.gitkeep` only) — you must run `pnpm regen` once after
-  cloning. Once generated, commit the `*.gen.ts` files so future clones of
-  your POC build without regenerating.
-- Hand-written hooks in `frontend/src/api/` wrap the generated SDK for
-  TanStack Query (`useHealth` in `src/api/health.ts` is the reference).
-- Components consume those hooks via `useQuery` / `useMutation` — they never
-  import from `src/client/` directly.
-
-**Never hand-edit `src/client/*.gen.ts` — it is overwritten on every regen.**
-
-## Regenerate the SDK (when backend routes or schemas change)
-
-In production the SDK is regenerated only when the backend API changes. The
-`/openapi.json` endpoint is gated by the `DEBUG` flag — set it to `true` in
-`.env` to expose the schema, then back to `false` before committing.
-
-```bash
-# 1. Enable the OpenAPI endpoint
-#    edit backend/.env: DEBUG=true
-# 2. Start the backend (see above) — it will serve /openapi.json
-# 3. Regenerate from frontend/
-cd frontend
-pnpm regen
-# Equivalent to:
-#   pnpm run update-schema   # curl /openapi.json -> openapi.json
-#   pnpm run generate-sdk    # openapi-ts -> src/client/*.gen.ts
-# 4. Revert DEBUG=false in backend/.env
-# 5. Review the openapi.json diff, update wrappers in src/api/ as needed,
-#    and commit both openapi.json and src/client/*.gen.ts
-```
-
-## Add a new route end-to-end
-
-1. **Backend** — add a route file under `backend/app/routes/`, define Pydantic
-   request/response models (in the same file or `routes/schemas.py`).
-2. **Register** it in `backend/app/main.py`:
-   ```python
-   from app.routes.my_feature import router as my_feature_router
-   app.include_router(my_feature_router, prefix="/api")
-   ```
-3. **DB model (optional)** — add a SQLAlchemy model under `backend/app/db/`,
-   then import it in `backend/app/db/base.py` so `Base.metadata` sees it
-   before `init_db()` runs `create_all()`. SQLite, no migrations — the table
-   is created on next backend restart.
-4. **Set `DEBUG=true`** in `backend/.env`, restart the backend.
-5. **Regenerate** from `frontend/`: `pnpm regen`.
-6. **Wrap** the new generated function in `frontend/src/api/<feature>.ts`,
-   following the `health.ts` pattern. Use `useQuery` for reads and
-   `useMutation` for writes.
-7. **Use** the hook from a component.
-8. **Revert `DEBUG=false`** before committing.
 
 ## Verify
 
-```bash
-# Backend
-cd backend
-pytest
+Run the server-side verification suites from the repo root:
 
-# Frontend
-cd ../frontend
-pnpm typecheck
-pnpm build
+```bash
+uv run --project /app/server --extra dev pytest /app/tests/e2e/test_foundry_demo.py
+uv run --project /app/server --extra dev pytest /app/tests/server /app/tests/e2e/test_foundry_demo.py
 ```
 
-## Notes
+Current branch note: Story 19 depends on Story 17's generator implementation.
+If `generate_all` is still scaffold-only, the e2e proof test records that state
+as an explicit dependency `xfail` instead of reporting a false green run.
 
-- SQLite file (`poc.db`) sits next to the backend and is gitignored. For
-  POCs this is fine; it gets wiped per environment.
-- No Docker, no deploy script, no auth in the template. Add per-POC.
-- Tailwind is set up with an empty theme. Plug Penpot design tokens into
-  `tailwind.config.js` per-POC.
+When the generator pipeline is healthy, the e2e test performs the full temp-dir
+flow and runs:
+
+```bash
+uv run --project <generated_project> pytest
+```
+
+## Evidence To Record Back In MindLap
+
+Capture:
+
+- exact `uv run ... pytest ...` commands
+- pass/fail or `xfail` counts
+- whether the generated project pytest run completed cleanly
+- any reproduced Story 17 generator defect if the e2e proof is blocked
