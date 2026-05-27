@@ -10,6 +10,8 @@ from typing import Any
 from fastmcp import FastMCP
 from pydantic import BaseModel
 
+from server.exceptions import DraftSpecError
+from server.spec_builder import build_openapi_spec
 from server.tool_schemas import (
     DraftSpecRequest,
     DraftSpecResponse,
@@ -22,6 +24,7 @@ from server.tool_schemas import (
     ValidateSpecRequest,
     ValidateSpecResponse,
 )
+from server.validator import validate_openapi_spec
 
 SERVER_NAME = "api-spec-foundry"
 SERVER_VERSION = "0.1.0"
@@ -37,24 +40,34 @@ TOOL_NAMES = (
 )
 
 
-def _draft_spec_response(request: DraftSpecRequest) -> DraftSpecResponse:
+def handle_draft_spec(request: DraftSpecRequest) -> DraftSpecResponse:
+    """Draft a deterministic OpenAPI document from structured resource input."""
+    try:
+        spec_yaml, endpoint_count = build_openapi_spec(request)
+    except DraftSpecError as exc:
+        return DraftSpecResponse(
+            status="invalid",
+            spec_yaml="",
+            summary=str(exc),
+            resource_count=len(request.resources),
+            endpoint_count=0,
+            warnings=[],
+        )
+
     resource_count = len(request.resources)
     return DraftSpecResponse(
-        summary=(
-            "Scaffold only. draft_spec is registered but not implemented yet. "
-            f"Received {resource_count} resources for project '{request.project_name}'."
-        ),
-        warnings=["Phase 1 scaffold: no OpenAPI draft is generated yet."],
+        status="ok",
+        spec_yaml=spec_yaml,
+        summary=f"{resource_count} resources, {endpoint_count} endpoints",
+        resource_count=resource_count,
+        endpoint_count=endpoint_count,
+        warnings=[],
     )
 
 
-def _validate_spec_response(_: ValidateSpecRequest) -> ValidateSpecResponse:
-    return ValidateSpecResponse(
-        valid=False,
-        summary=(
-            "Scaffold only. validate_spec is registered but not implemented yet."
-        ),
-    )
+def handle_validate_spec(request: ValidateSpecRequest) -> ValidateSpecResponse:
+    """Validate an OpenAPI draft and return structured errors or warnings."""
+    return validate_openapi_spec(request.spec)
 
 
 def _generation_response(tool_name: str) -> GenerationResponse:
@@ -68,13 +81,13 @@ TOOL_SURFACE: tuple[dict[str, Any], ...] = (
         "name": "draft_spec",
         "request_model": DraftSpecRequest,
         "response_model": DraftSpecResponse,
-        "handler": _draft_spec_response,
+        "handler": handle_draft_spec,
     },
     {
         "name": "validate_spec",
         "request_model": ValidateSpecRequest,
         "response_model": ValidateSpecResponse,
-        "handler": _validate_spec_response,
+        "handler": handle_validate_spec,
     },
     {
         "name": "generate_backend",

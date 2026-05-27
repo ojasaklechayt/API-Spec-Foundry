@@ -6,6 +6,7 @@ dependencies = [
     "fastmcp>=2.13",
     "jinja2>=3.1",
     "openapi-core>=0.19",
+    "openapi-spec-validator>=0.8.0",
     "pydantic>=2.7",
     "pyyaml>=6.0",
 ]

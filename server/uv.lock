@@ -44,6 +44,7 @@ dependencies = [
     { name = "fastmcp" },
     { name = "jinja2" },
     { name = "openapi-core" },
+    { name = "openapi-spec-validator" },
     { name = "pydantic" },
     { name = "pyyaml" },
 ]
@@ -58,6 +59,7 @@ requires-dist = [
     { name = "fastmcp", specifier = ">=2.13" },
     { name = "jinja2", specifier = ">=3.1" },
     { name = "openapi-core", specifier = ">=0.19" },
+    { name = "openapi-spec-validator", specifier = ">=0.8.0" },
     { name = "pydantic", specifier = ">=2.7" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8" },
     { name = "pyyaml", specifier = ">=6.0" },
