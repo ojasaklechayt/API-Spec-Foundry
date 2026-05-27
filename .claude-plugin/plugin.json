@@ -1,0 +1,12 @@
+{
+  "name": "api-spec-foundry",
+  "description": "Spec-first API generator plugin with a local MCP runtime scaffold.",
+  "version": "0.1.0",
+  "author": {
+    "name": "mindlap.dev",
+    "email": "ojas@mindlap.dev"
+  },
+  "license": "MIT",
+  "agents": "./agents/foundry/AGENT.md",
+  "mcpServers": "./.mcp.json"
+}

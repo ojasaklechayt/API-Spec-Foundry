@@ -1,0 +1,182 @@
+"""FastMCP composition root for the API Spec Foundry plugin."""
+
+from __future__ import annotations
+
+import json
+import os
+from collections.abc import Callable
+from typing import Any
+
+from fastmcp import FastMCP
+from pydantic import BaseModel
+
+from server.tool_schemas import (
+    DraftSpecRequest,
+    DraftSpecResponse,
+    GenerateAllRequest,
+    GenerateBackendRequest,
+    GenerateContainersRequest,
+    GenerateDbRequest,
+    GenerateTestsRequest,
+    GenerationResponse,
+    ValidateSpecRequest,
+    ValidateSpecResponse,
+)
+
+SERVER_NAME = "api-spec-foundry"
+SERVER_VERSION = "0.1.0"
+
+TOOL_NAMES = (
+    "draft_spec",
+    "validate_spec",
+    "generate_backend",
+    "generate_db",
+    "generate_tests",
+    "generate_containers",
+    "generate_all",
+)
+
+
+def _draft_spec_response(request: DraftSpecRequest) -> DraftSpecResponse:
+    resource_count = len(request.resources)
+    return DraftSpecResponse(
+        summary=(
+            "Scaffold only. draft_spec is registered but not implemented yet. "
+            f"Received {resource_count} resources for project '{request.project_name}'."
+        ),
+        warnings=["Phase 1 scaffold: no OpenAPI draft is generated yet."],
+    )
+
+
+def _validate_spec_response(_: ValidateSpecRequest) -> ValidateSpecResponse:
+    return ValidateSpecResponse(
+        valid=False,
+        summary=(
+            "Scaffold only. validate_spec is registered but not implemented yet."
+        ),
+    )
+
+
+def _generation_response(tool_name: str) -> GenerationResponse:
+    return GenerationResponse(
+        summary=f"Scaffold only. {tool_name} is registered but not implemented yet."
+    )
+
+
+TOOL_SURFACE: tuple[dict[str, Any], ...] = (
+    {
+        "name": "draft_spec",
+        "request_model": DraftSpecRequest,
+        "response_model": DraftSpecResponse,
+        "handler": _draft_spec_response,
+    },
+    {
+        "name": "validate_spec",
+        "request_model": ValidateSpecRequest,
+        "response_model": ValidateSpecResponse,
+        "handler": _validate_spec_response,
+    },
+    {
+        "name": "generate_backend",
+        "request_model": GenerateBackendRequest,
+        "response_model": GenerationResponse,
+        "handler": lambda _: _generation_response("generate_backend"),
+    },
+    {
+        "name": "generate_db",
+        "request_model": GenerateDbRequest,
+        "response_model": GenerationResponse,
+        "handler": lambda _: _generation_response("generate_db"),
+    },
+    {
+        "name": "generate_tests",
+        "request_model": GenerateTestsRequest,
+        "response_model": GenerationResponse,
+        "handler": lambda _: _generation_response("generate_tests"),
+    },
+    {
+        "name": "generate_containers",
+        "request_model": GenerateContainersRequest,
+        "response_model": GenerationResponse,
+        "handler": lambda _: _generation_response("generate_containers"),
+    },
+    {
+        "name": "generate_all",
+        "request_model": GenerateAllRequest,
+        "response_model": GenerationResponse,
+        "handler": lambda _: _generation_response("generate_all"),
+    },
+)
+
+
+def describe_tool_surface() -> list[dict[str, str]]:
+    """Return a lightweight description of the registered tool contract."""
+    return [
+        {
+            "name": entry["name"],
+            "request_model": entry["request_model"].__name__,
+            "response_model": entry["response_model"].__name__,
+        }
+        for entry in TOOL_SURFACE
+    ]
+
+
+def _register_tool(
+    mcp: FastMCP,
+    *,
+    name: str,
+    request_model: type[BaseModel],
+    handler: Callable[[BaseModel], BaseModel],
+) -> None:
+    def tool(request: BaseModel) -> dict[str, Any]:
+        response = handler(request)
+        return response.model_dump()
+
+    tool.__name__ = name
+    tool.__annotations__ = {
+        "request": request_model,
+        "return": dict[str, Any],
+    }
+    mcp.tool(tool, name=name)
+
+
+def build_server() -> FastMCP:
+    """Create the FastMCP server and register the planned tool surface."""
+    mcp = FastMCP(name=SERVER_NAME)
+
+    for entry in TOOL_SURFACE:
+        _register_tool(
+            mcp,
+            name=entry["name"],
+            request_model=entry["request_model"],
+            handler=entry["handler"],
+        )
+
+    # Tests use this explicit attribute instead of depending on FastMCP internals.
+    mcp._foundry_registered_tools = TOOL_NAMES  # type: ignore[attr-defined]
+    return mcp
+
+
+def main() -> None:
+    """Boot the stdio MCP server."""
+    server = build_server()
+
+    # Phase 1 tests need a non-blocking way to validate the exact runtime entrypoint.
+    if os.getenv("FOUNDRY_EXIT_AFTER_STARTUP") == "1":
+        print(
+            json.dumps(
+                {
+                    "status": "booted",
+                    "server": SERVER_NAME,
+                    "version": SERVER_VERSION,
+                    "tool_count": len(TOOL_NAMES),
+                }
+            )
+        )
+        return
+
+    server.run()
+
+
+if __name__ == "__main__":
+    main()

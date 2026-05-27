@@ -1,0 +1,27 @@
+[project]
+name = "api-spec-foundry-server"
+version = "0.1.0"
+requires-python = ">=3.11"
+dependencies = [
+    "fastmcp>=2.13",
+    "jinja2>=3.1",
+    "openapi-core>=0.19",
+    "pydantic>=2.7",
+    "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8",
+]
+
+[tool.pytest.ini_options]
+pythonpath = [".."]
+testpaths = ["../tests/server"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["."]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
