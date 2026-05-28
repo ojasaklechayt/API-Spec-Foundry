@@ -1,0 +1,368 @@
+openapi: 3.1.0
+info:
+  title: Task Manager API
+  version: 0.1.0
+servers:
+- url: http://localhost:8000
+tags:
+- name: Users
+  description: users operations
+- name: Tasks
+  description: tasks operations
+paths:
+  /users:
+    get:
+      tags:
+      - Users
+      summary: List users
+      operationId: listUsers
+      responses:
+        '200':
+          description: List users response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/User'
+    post:
+      tags:
+      - Users
+      summary: Create user
+      operationId: createUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserCreate'
+      responses:
+        '201':
+          description: User created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '422':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /users/{user_id}:
+    get:
+      tags:
+      - Users
+      summary: Get user
+      operationId: getUser
+      parameters:
+      - name: user_id
+        in: path
+        required: true
+        schema:
+          type: integer
+      responses:
+        '200':
+          description: User response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '404':
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    put:
+      tags:
+      - Users
+      summary: Update user
+      operationId: updateUser
+      parameters:
+      - name: user_id
+        in: path
+        required: true
+        schema:
+          type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserUpdate'
+      responses:
+        '200':
+          description: User updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '404':
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    delete:
+      tags:
+      - Users
+      summary: Delete user
+      operationId: deleteUser
+      parameters:
+      - name: user_id
+        in: path
+        required: true
+        schema:
+          type: integer
+      responses:
+        '204':
+          description: User deleted
+        '404':
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /tasks:
+    get:
+      tags:
+      - Tasks
+      summary: List tasks
+      operationId: listTasks
+      responses:
+        '200':
+          description: List tasks response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Task'
+    post:
+      tags:
+      - Tasks
+      summary: Create task
+      operationId: createTask
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TaskCreate'
+      responses:
+        '201':
+          description: Task created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+        '422':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /tasks/{task_id}:
+    get:
+      tags:
+      - Tasks
+      summary: Get task
+      operationId: getTask
+      parameters:
+      - name: task_id
+        in: path
+        required: true
+        schema:
+          type: integer
+      responses:
+        '200':
+          description: Task response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+        '404':
+          description: Task not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    put:
+      tags:
+      - Tasks
+      summary: Update task
+      operationId: updateTask
+      parameters:
+      - name: task_id
+        in: path
+        required: true
+        schema:
+          type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TaskUpdate'
+      responses:
+        '200':
+          description: Task updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+        '404':
+          description: Task not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    delete:
+      tags:
+      - Tasks
+      summary: Delete task
+      operationId: deleteTask
+      parameters:
+      - name: task_id
+        in: path
+        required: true
+        schema:
+          type: integer
+      responses:
+        '204':
+          description: Task deleted
+        '404':
+          description: Task not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+components:
+  schemas:
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        email:
+          type: string
+          format: email
+        name:
+          type: string
+        is_active:
+          type: boolean
+      required:
+      - id
+      - email
+      - name
+      - is_active
+      additionalProperties: false
+    UserCreate:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+        name:
+          type: string
+        is_active:
+          type: boolean
+      additionalProperties: false
+      required:
+      - email
+      - name
+      - is_active
+    UserUpdate:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+        name:
+          type: string
+        is_active:
+          type: boolean
+      additionalProperties: false
+    Error:
+      type: object
+      properties:
+        detail:
+          type: string
+      required:
+      - detail
+      additionalProperties: false
+    Task:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        title:
+          type: string
+        status:
+          type: string
+        due_date:
+          type:
+          - string
+          - 'null'
+          format: date-time
+        user_id:
+          type: integer
+      required:
+      - id
+      - title
+      - status
+      - user_id
+      additionalProperties: false
+    TaskCreate:
+      type: object
+      properties:
+        title:
+          type: string
+        status:
+          type: string
+        due_date:
+          type:
+          - string
+          - 'null'
+          format: date-time
+        user_id:
+          type: integer
+      additionalProperties: false
+      required:
+      - title
+      - status
+      - user_id
+    TaskUpdate:
+      type: object
+      properties:
+        title:
+          type: string
+        status:
+          type: string
+        due_date:
+          type:
+          - string
+          - 'null'
+          format: date-time
+        user_id:
+          type: integer
+      additionalProperties: false
+x-foundry:
+  project_name: Task Manager
+  db_backend: sqlite
+  resource_count: 2

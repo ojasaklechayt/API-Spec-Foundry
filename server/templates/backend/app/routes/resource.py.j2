@@ -1,0 +1,86 @@
+{% if resource.import_block %}
+{{ resource.import_block }}
+{% endif %}
+from fastapi import APIRouter, HTTPException, Response
+from pydantic import BaseModel, ConfigDict
+
+router = APIRouter(tags=["{{ resource.class_name }}"])
+
+
+class {{ resource.class_name }}(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    id: int
+{% if resource.response_field_block %}
+{{ resource.response_field_block }}
+{% endif %}
+
+
+class {{ resource.class_name }}Create(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+{% if resource.create_field_block %}
+{{ resource.create_field_block }}
+{% endif %}
+
+
+class {{ resource.class_name }}Update(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+{% if resource.update_field_block %}
+{{ resource.update_field_block }}
+{% endif %}
+
+
+_STORE: dict[int, {{ resource.class_name }}] = {}
+_NEXT_ID = 1
+
+
+@router.get("{{ resource.collection_path }}", response_model=list[{{ resource.class_name }}])
+def list_{{ resource.module_name }}() -> list[{{ resource.class_name }}]:
+    return list(_STORE.values())
+
+
+@router.post("{{ resource.collection_path }}", response_model={{ resource.class_name }}, status_code=201)
+def create_{{ resource.module_name }}(payload: {{ resource.class_name }}Create) -> {{ resource.class_name }}:
+    global _NEXT_ID
+    created = {{ resource.class_name }}(
+        id=_NEXT_ID,
+{% for field_name in resource.field_names %}
+        {{ field_name }}=payload.{{ field_name }},
+{% endfor %}
+    )
+    _STORE[_NEXT_ID] = created
+    _NEXT_ID += 1
+    return created
+
+
+@router.get("{{ resource.detail_path }}", response_model={{ resource.class_name }})
+def get_{{ resource.module_name }}({{ resource.path_parameter }}: int) -> {{ resource.class_name }}:
+    item = _STORE.get({{ resource.path_parameter }})
+    if item is None:
+        raise HTTPException(status_code=404, detail="{{ resource.class_name }} not found")
+    return item
+
+
+@router.put("{{ resource.detail_path }}", response_model={{ resource.class_name }})
+def update_{{ resource.module_name }}(
+    {{ resource.path_parameter }}: int,
+    payload: {{ resource.class_name }}Update,
+) -> {{ resource.class_name }}:
+    current = _STORE.get({{ resource.path_parameter }})
+    if current is None:
+        raise HTTPException(status_code=404, detail="{{ resource.class_name }} not found")
+
+    updates = payload.model_dump(exclude_unset=True)
+    updated = current.model_copy(update=updates)
+    _STORE[{{ resource.path_parameter }}] = updated
+    return updated
+
+
+@router.delete("{{ resource.detail_path }}", status_code=204)
+def delete_{{ resource.module_name }}({{ resource.path_parameter }}: int) -> Response:
+    if {{ resource.path_parameter }} not in _STORE:
+        raise HTTPException(status_code=404, detail="{{ resource.class_name }} not found")
+    del _STORE[{{ resource.path_parameter }}]
+    return Response(status_code=204)

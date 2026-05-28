@@ -1,0 +1,3 @@
+{% for resource in ir.resources %}
+from app.db.models.{{ resource.module_name }} import {{ resource.class_name }}
+{% endfor %}

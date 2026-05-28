@@ -1,0 +1,16 @@
+{
+  "name": "local",
+  "description": "Local API Spec Foundry marketplace",
+  "owner": {
+    "name": "mindlap.dev",
+    "email": "ojas@mindlap.dev"
+  },
+  "plugins": [
+    {
+      "name": "api-spec-foundry",
+      "source": "./",
+      "description": "Spec-first API generator — drafts and validates an OpenAPI spec, then generates a full backend project.",
+      "version": "0.1.0"
+    }
+  ]
+}
