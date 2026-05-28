@@ -26,3 +26,4 @@ dist/
 .vscode/
 .idea/
 .mindlap/config.json
+.mindlap/
