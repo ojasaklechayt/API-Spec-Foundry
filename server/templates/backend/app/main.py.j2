@@ -1,0 +1,40 @@
+from contextlib import asynccontextmanager
+
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+
+from app.core.config import settings
+from app.db.base import init_db
+from app.routes.health import router as health_router
+{% for resource in ir.resources %}
+from app.routes.{{ resource.module_name }} import router as {{ resource.module_name }}_router
+{% endfor %}
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    await init_db()
+    yield
+
+
+app = FastAPI(
+    title="{{ ir.project_name }} API",
+    version="0.1.0",
+    docs_url="/docs" if settings.debug else None,
+    redoc_url=None,
+    openapi_url="/openapi.json" if settings.debug else None,
+    lifespan=lifespan,
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.cors_origins,
+    allow_credentials=settings.cors_allow_credentials,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+app.include_router(health_router)
+{% for resource in ir.resources %}
+app.include_router({{ resource.module_name }}_router)
+{% endfor %}

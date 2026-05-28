@@ -1,0 +1,15 @@
+from datetime import date, datetime
+
+from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy import Integer, String, Float, Boolean, Date, DateTime
+
+from app.db.base import Base
+
+
+class {{ resource.class_name }}(Base):
+    __tablename__ = "{{ resource.table_name }}"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+{% for column in resource.columns %}
+{{ column }}
+{% endfor %}

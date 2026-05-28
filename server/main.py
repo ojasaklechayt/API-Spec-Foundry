@@ -10,7 +10,14 @@ from typing import Any
 from fastmcp import FastMCP
 from pydantic import BaseModel
 
-from server.exceptions import DraftSpecError
+from server.exceptions import DraftSpecError, GenerationError
+from server.generators.backend import generate_backend
+from server.generators.common import resolve_output_root
+from server.generators.containers import generate_containers
+from server.generators.db import generate_db
+from server.generators.orchestrator import generate_all
+from server.generators.tests import generate_tests
+from server.parser import build_ir
 from server.spec_builder import build_openapi_spec
 from server.tool_schemas import (
     DraftSpecRequest,
@@ -70,10 +77,122 @@ def handle_validate_spec(request: ValidateSpecRequest) -> ValidateSpecResponse:
     return validate_openapi_spec(request.spec)
 
 
-def _generation_response(tool_name: str) -> GenerationResponse:
-    return GenerationResponse(
-        summary=f"Scaffold only. {tool_name} is registered but not implemented yet."
+def handle_generate_backend(request: GenerateBackendRequest) -> GenerationResponse:
+    return _run_generation(
+        lambda: _generate_backend_response(request),
     )
+
+
+def handle_generate_db(request: GenerateDbRequest) -> GenerationResponse:
+    return _run_generation(
+        lambda: _generate_db_response(request),
+    )
+
+
+def handle_generate_tests(request: GenerateTestsRequest) -> GenerationResponse:
+    return _run_generation(
+        lambda: _generate_tests_response(request),
+    )
+
+
+def handle_generate_containers(request: GenerateContainersRequest) -> GenerationResponse:
+    return _run_generation(
+        lambda: _generate_containers_response(request),
+    )
+
+
+def handle_generate_all(request: GenerateAllRequest) -> GenerationResponse:
+    validation = validate_openapi_spec(request.spec)
+    if not validation.valid:
+        return GenerationResponse(
+            status="invalid",
+            summary=validation.summary,
+            files_written=[],
+        )
+
+    return _run_generation(
+        lambda: _generate_all_response(request),
+    )
+
+
+def _generate_backend_response(request: GenerateBackendRequest) -> GenerationResponse:
+    ir = build_ir(request.spec)
+    output_root = resolve_output_root(request.output_dir)
+    files_written = generate_backend(ir, output_root)
+    return GenerationResponse(
+        status="ok",
+        files_written=files_written,
+        summary=f"Generated backend scaffold for {ir.project_name}.",
+    )
+
+
+def _generate_db_response(request: GenerateDbRequest) -> GenerationResponse:
+    ir = build_ir(request.spec)
+    output_root = resolve_output_root(request.output_dir)
+    files_written, models = generate_db(ir, output_root, db_backend=request.db_backend)
+    return GenerationResponse(
+        status="ok",
+        files_written=files_written,
+        models=models,
+        summary=f"Generated database models for {ir.project_name}.",
+    )
+
+
+def _generate_tests_response(request: GenerateTestsRequest) -> GenerationResponse:
+    ir = build_ir(request.spec)
+    output_root = resolve_output_root(request.output_dir)
+    files_written, test_count = generate_tests(ir, output_root)
+    return GenerationResponse(
+        status="ok",
+        files_written=files_written,
+        test_count=test_count,
+        summary=f"Generated pytest suite for {ir.project_name}.",
+    )
+
+
+def _generate_containers_response(request: GenerateContainersRequest) -> GenerationResponse:
+    output_root = resolve_output_root(request.output_dir)
+    files_written = generate_containers(
+        request.project_name,
+        output_root,
+        db_backend=request.db_backend,
+        include_db=request.include_db,
+    )
+    return GenerationResponse(
+        status="ok",
+        files_written=files_written,
+        summary=f"Generated container assets for {request.project_name}.",
+    )
+
+
+def _generate_all_response(request: GenerateAllRequest) -> GenerationResponse:
+    ir = build_ir(request.spec)
+    project_root, files_written, models, test_count = generate_all(
+        ir,
+        spec_text=request.spec,
+        output_dir=request.output_dir,
+        include_tests=request.options.include_tests,
+        include_containers=request.options.include_containers,
+        db_backend=request.options.db_backend,
+    )
+    return GenerationResponse(
+        status="ok",
+        files_written=files_written,
+        models=models,
+        test_count=test_count,
+        summary=f"Generated project at {project_root}.",
+    )
+
+
+def _run_generation(callback: Callable[[], GenerationResponse]) -> GenerationResponse:
+    try:
+        return callback()
+    except GenerationError as exc:
+        return GenerationResponse(
+            status="invalid",
+            summary=str(exc),
+            files_written=[],
+        )
 
 
 TOOL_SURFACE: tuple[dict[str, Any], ...] = (
@@ -93,31 +212,31 @@ TOOL_SURFACE: tuple[dict[str, Any], ...] = (
         "name": "generate_backend",
         "request_model": GenerateBackendRequest,
         "response_model": GenerationResponse,
-        "handler": lambda _: _generation_response("generate_backend"),
+        "handler": handle_generate_backend,
     },
     {
         "name": "generate_db",
         "request_model": GenerateDbRequest,
         "response_model": GenerationResponse,
-        "handler": lambda _: _generation_response("generate_db"),
+        "handler": handle_generate_db,
     },
     {
         "name": "generate_tests",
         "request_model": GenerateTestsRequest,
         "response_model": GenerationResponse,
-        "handler": lambda _: _generation_response("generate_tests"),
+        "handler": handle_generate_tests,
     },
     {
         "name": "generate_containers",
         "request_model": GenerateContainersRequest,
         "response_model": GenerationResponse,
-        "handler": lambda _: _generation_response("generate_containers"),
+        "handler": handle_generate_containers,
     },
     {
         "name": "generate_all",
         "request_model": GenerateAllRequest,
         "response_model": GenerationResponse,
-        "handler": lambda _: _generation_response("generate_all"),
+        "handler": handle_generate_all,
     },
 )
 

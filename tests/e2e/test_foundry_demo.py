@@ -72,11 +72,6 @@ def test_task_manager_demo_generation_passes_generated_pytest(tmp_path: Path) ->
     )
     generate_response = _generate_all_handler()(generate_request)
 
-    if generate_response.status == "stub":
-        pytest.xfail(
-            "Story 17 dependency unresolved: generate_all is still scaffold-only in this branch."
-        )
-
     assert generate_response.status == "ok"
     assert generate_response.files_written
 
@@ -95,6 +90,8 @@ def test_task_manager_demo_generation_passes_generated_pytest(tmp_path: Path) ->
             "run",
             "--project",
             str(generated_project),
+            "--extra",
+            "dev",
             "pytest",
         ],
         cwd=generated_project,

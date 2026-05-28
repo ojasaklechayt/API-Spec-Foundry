@@ -85,6 +85,7 @@ class GenerateTestsRequest(StrictModel):
 class GenerateContainersRequest(StrictModel):
     project_name: str
     output_dir: str = "."
+    db_backend: DatabaseBackend = "sqlite"
     include_db: bool = True
 
 
