@@ -1,12 +1,29 @@
 {
   "name": "api-spec-foundry",
-  "description": "Spec-first API generator plugin with a local MCP runtime scaffold.",
+  "description": "Spec-first API generator plugin. Drafts and validates an OpenAPI spec, then generates a full backend project. Tools are called automatically by the foundry agent.",
   "version": "0.1.0",
   "author": {
     "name": "mindlap.dev",
     "email": "ojas@mindlap.dev"
   },
   "license": "MIT",
+  "homepage": "https://mindlap.dev",
   "agents": "./agents/foundry/AGENT.md",
-  "mcpServers": "./.mcp.json"
+  "mcpServers": {
+    "foundry": {
+      "command": "uv",
+      "args": [
+        "run",
+        "--project",
+        "${CLAUDE_PLUGIN_ROOT}/server",
+        "python",
+        "-m",
+        "server.main"
+      ],
+      "cwd": "${CLAUDE_PLUGIN_ROOT}",
+      "env": {
+        "PYTHONPATH": "${CLAUDE_PLUGIN_ROOT}"
+      }
+    }
+  }
 }

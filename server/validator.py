@@ -13,6 +13,10 @@ from server.tool_schemas import ValidateSpecResponse, ValidationIssue
 
 HTTP_METHODS = ("get", "post", "put", "patch", "delete")
 PATH_PARAMETER_RE = re.compile(r"{([^{}]+)}")
+_VALID_DB_BACKENDS = frozenset({"sqlite", "postgres"})
+_UNSUPPORTED_COMPOSITION_KEYWORDS = (
+    "oneOf", "anyOf", "allOf", "not", "if", "then", "else", "discriminator"
+)
 
 
 def validate_openapi_spec(raw_spec: str) -> ValidateSpecResponse:
@@ -30,14 +34,11 @@ def validate_openapi_spec(raw_spec: str) -> ValidateSpecResponse:
         errors.append(ValidationIssue(path="$", message="Spec root must be an object."))
         return _response(errors=errors, warnings=warnings, operation_count=0)
 
-    _require_string(spec, "openapi", errors)
-    if spec.get("openapi") != "3.1.0":
-        errors.append(
-            ValidationIssue(
-                path="openapi",
-                message="OpenAPI version must be '3.1.0'.",
-            )
-        )
+    _openapi_version = spec.get("openapi")
+    if not isinstance(_openapi_version, str) or not _openapi_version.strip():
+        errors.append(ValidationIssue(path="openapi", message="Value must be a non-empty string."))
+    elif _openapi_version != "3.1.0":
+        errors.append(ValidationIssue(path="openapi", message="OpenAPI version must be '3.1.0'."))
 
     info = spec.get("info")
     if not isinstance(info, dict):
@@ -45,6 +46,8 @@ def validate_openapi_spec(raw_spec: str) -> ValidateSpecResponse:
     else:
         _require_string(info, "title", errors, parent="info")
         _require_string(info, "version", errors, parent="info")
+
+    _validate_foundry_extension(spec, errors)
 
     paths = spec.get("paths")
     if not isinstance(paths, dict) or not paths:
@@ -95,7 +98,6 @@ def validate_openapi_spec(raw_spec: str) -> ValidateSpecResponse:
                 continue
 
             has_operation = True
-            operation_count += 1
             operation_path = f"paths.{path_name}.{method_name}"
 
             if not isinstance(operation, dict):
@@ -103,6 +105,8 @@ def validate_openapi_spec(raw_spec: str) -> ValidateSpecResponse:
                     ValidationIssue(path=operation_path, message="Operation must be an object.")
                 )
                 continue
+
+            operation_count += 1
 
             operation_parameters = _collect_path_parameter_names(
                 operation.get("parameters"),
@@ -162,6 +166,9 @@ def validate_openapi_spec(raw_spec: str) -> ValidateSpecResponse:
                     message="Path item has no supported HTTP operations.",
                 )
             )
+
+    if spec.get("x-foundry") and schemas:
+        _validate_generator_compatibility(schemas, errors, warnings)
 
     if not errors:
         _collect_standards_validation_errors(spec, errors)
@@ -304,13 +311,24 @@ def _collect_refs(
 ) -> None:
     if isinstance(node, dict):
         ref = node.get("$ref")
-        if isinstance(ref, str) and ref.startswith("#/components/schemas/"):
-            schema_name = ref.rsplit("/", 1)[-1]
-            if schema_name not in schemas:
-                errors.append(
+        if isinstance(ref, str):
+            if ref.startswith("#/components/schemas/"):
+                schema_name = ref.rsplit("/", 1)[-1]
+                if schema_name not in schemas:
+                    errors.append(
+                        ValidationIssue(
+                            path=f"{path}.$ref",
+                            message=f"Unknown component schema '{schema_name}'.",
+                        )
+                    )
+            else:
+                warnings.append(
                     ValidationIssue(
                         path=f"{path}.$ref",
-                        message=f"Unknown component schema '{schema_name}'.",
+                        message=(
+                            f"$ref '{ref}' is not a local schema reference "
+                            "and will not be resolved by Foundry generators."
+                        ),
                     )
                 )
 
@@ -331,7 +349,7 @@ def _collect_unsupported_keywords(
     path: str,
 ) -> None:
     if isinstance(node, dict):
-        for keyword in ("oneOf", "anyOf", "allOf"):
+        for keyword in _UNSUPPORTED_COMPOSITION_KEYWORDS:
             if keyword in node:
                 warnings.append(
                     ValidationIssue(
@@ -346,6 +364,90 @@ def _collect_unsupported_keywords(
     if isinstance(node, list):
         for index, value in enumerate(node):
             _collect_unsupported_keywords(value, warnings, path=f"{path}[{index}]")
+
+
+def _validate_foundry_extension(
+    spec: dict[str, Any],
+    errors: list[ValidationIssue],
+) -> None:
+    """Check for the x-foundry metadata block that all Foundry generators require."""
+    x_foundry = spec.get("x-foundry")
+    if not isinstance(x_foundry, dict):
+        errors.append(
+            ValidationIssue(
+                path="x-foundry",
+                message=(
+                    "x-foundry metadata block is required. "
+                    "Use draft_spec to produce a Foundry-compatible spec."
+                ),
+            )
+        )
+        return
+
+    project_name = x_foundry.get("project_name")
+    if not isinstance(project_name, str) or not project_name.strip():
+        errors.append(
+            ValidationIssue(
+                path="x-foundry.project_name",
+                message="x-foundry.project_name must be a non-empty string.",
+            )
+        )
+
+    db_backend = x_foundry.get("db_backend")
+    if db_backend not in _VALID_DB_BACKENDS:
+        errors.append(
+            ValidationIssue(
+                path="x-foundry.db_backend",
+                message=(
+                    f"x-foundry.db_backend must be one of: "
+                    f"{sorted(_VALID_DB_BACKENDS)}. Got {db_backend!r}."
+                ),
+            )
+        )
+
+
+def _validate_generator_compatibility(
+    schemas: dict[str, Any],
+    errors: list[ValidationIssue],
+    warnings: list[ValidationIssue],
+) -> None:
+    """Check that resource schemas have the Create/Update variants that generators require."""
+    resource_names = [
+        name
+        for name, body in schemas.items()
+        if (
+            isinstance(body, dict)
+            and not name.endswith(("Create", "Update"))
+            and name != "Error"
+            and isinstance(body.get("properties"), dict)
+            and "id" in body.get("properties", {})
+        )
+    ]
+
+    if not resource_names:
+        errors.append(
+            ValidationIssue(
+                path="components.schemas",
+                message=(
+                    "No generator-compatible resource schemas found. "
+                    "Each resource must have an 'id' property and not end in 'Create' or 'Update'."
+                ),
+            )
+        )
+        return
+
+    for name in resource_names:
+        for variant in ("Create", "Update"):
+            if f"{name}{variant}" not in schemas:
+                errors.append(
+                    ValidationIssue(
+                        path=f"components.schemas.{name}{variant}",
+                        message=(
+                            f"Generator requires '{name}{variant}' schema alongside '{name}'. "
+                            f"Add a '{name}{variant}' schema to components.schemas."
+                        ),
+                    )
+                )
 
 
 def _collect_standards_validation_errors(
