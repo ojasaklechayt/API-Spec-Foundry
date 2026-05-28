@@ -1,19 +1,3 @@
 {
-  "mcpServers": {
-    "foundry": {
-      "command": "uv",
-      "args": [
-        "run",
-        "--project",
-        "${CLAUDE_PLUGIN_ROOT}/server",
-        "python",
-        "-m",
-        "server.main"
-      ],
-      "cwd": "${CLAUDE_PLUGIN_ROOT}",
-      "env": {
-        "PYTHONPATH": "${CLAUDE_PLUGIN_ROOT}"
-      }
-    }
-  }
+  "mcpServers": {}
 }
